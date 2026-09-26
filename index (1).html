@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MusiCare — Gestionale</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --teal:#015152; --teal-ink:#06393a; --rose:#b86577; --sky:#6f9fb0; --sage:#94a186;
+  --blush:#ffebf0; --paper:#f4f5ee; --paper-deep:#e9ebde; --line:rgba(1,51,52,.14);
+  --ink:#0b2e2f; --ink-soft:rgba(11,46,47,.68);
+  --f-display:'Fraunces', ui-serif, Georgia, serif; --f-body:'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*,*::before,*::after{ box-sizing:border-box; }
+body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--f-body); line-height:1.5; -webkit-font-smoothing:antialiased; }
+a{ color:inherit; } button{ font-family:inherit; cursor:pointer; }
+img{ max-width:100%; }
+
+.shell{ max-width:1180px; margin:0 auto; padding:0 22px 60px; }
+.topbar{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:22px 0 18px; border-bottom:1px solid var(--line); margin-bottom:26px; flex-wrap:wrap;
+}
+.brand{ display:flex; flex-direction:column; gap:2px; }
+.brand .eyebrow{ font-weight:700; font-size:.72rem; letter-spacing:.12em; text-transform:uppercase; color:var(--rose); }
+.brand h1{ font-family:var(--f-display); font-weight:600; font-size:1.5rem; margin:0; color:var(--teal-ink); }
+.top-actions{ display:flex; gap:10px; flex-wrap:wrap; }
+.btn{
+  display:inline-flex; align-items:center; gap:7px; padding:9px 16px; border-radius:999px;
+  font-weight:700; font-size:.85rem; border:none; text-decoration:none; transition:transform .15s var(--ease);
+}
+.btn:active{ transform:scale(.97); }
+.btn--solid{ background:var(--teal); color:#fdfdf9; }
+.btn--outline{ background:transparent; color:var(--teal-ink); box-shadow:inset 0 0 0 1.3px var(--teal); }
+.btn--ghost{ background:rgba(1,81,82,.08); color:var(--teal-ink); }
+
+/* ---------- layout admin ---------- */
+.admin-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin-bottom:30px; }
+.stat{
+  background:#fff; border:1px solid var(--line); border-radius:18px; padding:20px 22px;
+}
+.stat .stat-label{ font-size:.72rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft); margin:0 0 8px; }
+.stat .stat-value{ font-family:var(--f-display); font-weight:600; font-size:1.9rem; color:var(--teal-ink); margin:0; }
+.stat .stat-sub{ font-size:.8rem; color:var(--ink-soft); margin-top:4px; }
+
+.section{ margin-bottom:38px; }
+.section h2{ font-family:var(--f-display); font-weight:600; font-size:1.3rem; color:var(--teal-ink); margin:0 0 4px; }
+.section .section-note{ font-size:.86rem; color:var(--ink-soft); margin:0 0 16px; max-width:64ch; }
+
+.setup-note{
+  background:var(--blush); border:1px solid rgba(184,101,119,.25); border-radius:16px;
+  padding:18px 20px; font-size:.88rem; color:#7a3b48; margin-bottom:16px;
+}
+.setup-note code{ background:rgba(255,255,255,.6); padding:1px 6px; border-radius:6px; font-size:.82em; }
+
+.family-list{ display:flex; flex-direction:column; gap:12px; }
+.family-card{
+  background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px 20px;
+  display:flex; flex-wrap:wrap; gap:14px; align-items:center; justify-content:space-between;
+}
+.family-card .fam-name{ font-family:var(--f-display); font-weight:600; font-size:1.05rem; color:var(--teal-ink); }
+.family-card .fam-kids{ font-size:.85rem; color:var(--ink-soft); margin-top:3px; }
+.family-card .fam-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+.btn--sm{ padding:7px 13px; font-size:.78rem; }
+
+.table-list{ display:flex; flex-direction:column; }
+.table-row{
+  display:flex; flex-wrap:wrap; gap:6px 18px; align-items:baseline;
+  padding:14px 4px; border-top:1px solid var(--line); font-size:.9rem;
+}
+.table-row:last-child{ border-bottom:1px solid var(--line); }
+.table-row .t-main{ font-weight:700; color:var(--ink); }
+.table-row .t-sub{ color:var(--ink-soft); }
+.tag{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:.72rem; font-weight:700; }
+.tag--warn{ background:var(--blush); color:#8a4453; }
+.tag--ok{ background:#e2ece5; color:var(--teal-ink); }
+
+.empty{ padding:26px 20px; text-align:center; color:var(--ink-soft); font-size:.9rem; border:1px dashed var(--line); border-radius:16px; }
+
+/* ---------- home famiglia ---------- */
+.fam-hero{ text-align:center; padding:10px 0 8px; }
+.fam-hero .fam-eyebrow{ font-weight:700; font-size:.74rem; letter-spacing:.12em; text-transform:uppercase; color:var(--rose); }
+.fam-hero h1{ font-family:var(--f-display); font-weight:600; font-size:clamp(1.8rem,6vw,2.4rem); color:var(--teal-ink); margin:6px 0 8px; }
+.fam-hero .fam-tag{ color:var(--ink-soft); max-width:44ch; margin:0 auto; }
+
+.tabs{ display:flex; gap:6px; justify-content:center; margin:26px 0 30px; flex-wrap:wrap; }
+.tab{
+  background:none; border:none; padding:9px 18px; border-radius:999px; font-weight:700; font-size:.86rem;
+  color:var(--ink-soft); transition:background .2s var(--ease), color .2s var(--ease);
+}
+.tab.is-active{ background:var(--teal); color:#fdfdf9; }
+.tab-panel{ display:none; } .tab-panel.is-active{ display:block; }
+
+.next-lesson{
+  background:linear-gradient(175deg,#fff,var(--paper-deep)); border:1px solid var(--line); border-radius:20px;
+  padding:26px 24px; margin-bottom:20px;
+}
+.next-lesson .nl-label{ font-weight:700; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--rose); margin:0 0 8px; }
+.next-lesson .nl-date{ font-family:var(--f-display); font-weight:600; font-size:1.4rem; color:var(--teal-ink); margin:0 0 4px; }
+.next-lesson .nl-course{ color:var(--ink-soft); }
+
+.announce{
+  background:var(--blush); border:1px solid rgba(184,101,119,.25); border-radius:16px; padding:18px 20px; margin-bottom:14px;
+}
+.announce h3{ font-family:var(--f-display); font-weight:600; font-size:1.05rem; margin:0 0 6px; color:#7a3b48; }
+.announce p{ margin:0; color:#7a3b48; font-size:.9rem; }
+
+.enroll-card{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px 20px; margin-bottom:12px; }
+.enroll-card .e-course{ font-weight:700; }
+
+.cal-month{ margin-bottom:22px; }
+.cal-month h3{ font-family:var(--f-display); font-weight:600; font-size:1.05rem; color:var(--teal-ink); margin:0 0 10px; text-transform:capitalize; }
+.cal-item{ display:flex; gap:14px; padding:10px 4px; border-top:1px solid var(--line); font-size:.9rem; }
+.cal-item:last-child{ border-bottom:1px solid var(--line); }
+.cal-item .c-date{ font-weight:700; min-width:120px; }
+
+.song{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 18px; background:#fff; border:1px solid var(--line); border-radius:14px; margin-bottom:10px; }
+.song .s-title{ font-weight:700; } .song .s-artist{ color:var(--ink-soft); font-size:.85rem; }
+
+.info-block{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px 22px; margin-bottom:14px; }
+.info-block h3{ font-family:var(--f-display); font-weight:600; font-size:1.05rem; color:var(--teal-ink); margin:0 0 8px; }
+.info-block p, .info-block li{ font-size:.9rem; color:var(--ink-soft); }
+.info-block a{ color:var(--teal); font-weight:700; }
+
+@media(max-width:600px){
+  .table-row{ flex-direction:column; gap:2px; }
+  .family-card{ flex-direction:column; align-items:flex-start; }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="shell"><p style="padding:60px 0; text-align:center; color:var(--ink-soft)">Caricamento...</p></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+/* ============================================================================
+   MUSICARE — GESTIONALE
+   ----------------------------------------------------------------------------
+   COME COLLEGARE I TUOI DATI
+   Quando i tuoi fogli Google sono pronti e pubblicati sul web come CSV,
+   incolla i 5 link qui sotto, tra le virgolette. Tutto il resto si aggiorna
+   da solo, ogni volta che modifichi un foglio.
+   ============================================================================ */
+
+const PUB_KEY = '2PACX-1vRLzx0SbMvVW__-qkpsXtwXtOYIkL_8gOv9ZJ6PHBgwdWyrQXw899BNboBF0MUKVQ';
+function csvUrl(gid){ return `https://docs.google.com/spreadsheets/d/e/${PUB_KEY}/pub?gid=${gid}&single=true&output=csv`; }
+
+const SHEETS = {
+  studenti:  csvUrl('2016135318'),
+  chiusure:  csvUrl('483533595'),
+  pagamenti: csvUrl('1549827686'),
+  canzoni:   csvUrl('408730944'),
+  annunci:   csvUrl('1491722840'),
+};
+
+// Anno scolastico dei corsi
+const ANNO_INIZIO = '2026-10-01';
+const ANNO_FINE   = '2027-05-31';
+
+const INFO = {
+  telefono: '349 442 2875',
+  email: 'laragardin.musicare@gmail.com',
+  iban: 'IT44X0329601601000067668639',
+  intestatario: 'Lara Gardin',
+  formIscrizione: 'https://forms.gle/DFTtAHEXiV4s9Nq57',
+  formPagamento: 'https://forms.gle/GxqBjkABfftuGJ2a6',
+};
+
+const GIORNI_SETTIMANA = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+const MESI = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+
+/* ============================================================================
+   CARICAMENTO DATI (Google Sheets pubblicati come CSV)
+   ============================================================================ */
+function fetchSheet(url){
+  return new Promise((resolve)=>{
+    if(!url){ resolve([]); return; }
+    if(typeof Papa === 'undefined'){ resolve([]); return; }
+    Papa.parse(url, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (res)=> resolve(res.data || []),
+      error: ()=> resolve([])
+    });
+  });
+}
+
+async function loadAllData(){
+  const [studenti, chiusure, pagamenti, canzoni, annunci] = await Promise.all([
+    fetchSheet(SHEETS.studenti),
+    fetchSheet(SHEETS.chiusure),
+    fetchSheet(SHEETS.pagamenti),
+    fetchSheet(SHEETS.canzoni),
+    fetchSheet(SHEETS.annunci),
+  ]);
+  return { studenti, chiusure, pagamenti, canzoni, annunci };
+}
+
+/* ============================================================================
+   DATE E CALENDARIO
+   ============================================================================ */
+function parseDataIt(str){
+  // accetta gg/mm/aaaa oppure aaaa-mm-gg (Google a volte esporta così)
+  if(!str) return null;
+  str = str.trim();
+  let m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+  return null;
+}
+
+function fmtData(d){
+  return `${GIORNI_SETTIMANA[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`;
+}
+
+function stessoGiorno(a,b){
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+
+function dentroChiusura(data, chiusure){
+  return chiusure.some(c=>{
+    const dal = parseDataIt(c['Dal (gg/mm/aaaa)'] || c['Dal']);
+    const al  = parseDataIt(c['Al (gg/mm/aaaa)'] || c['Al']) || dal;
+    if(!dal) return false;
+    return data >= dal && data <= al;
+  });
+}
+
+// genera tutte le occorrenze settimanali di un giorno tra inizio e fine anno, escludendo le chiusure
+function generaOccorrenze(nomeGiorno, chiusure){
+  const idx = GIORNI_SETTIMANA.indexOf(nomeGiorno);
+  if(idx < 0) return [];
+  const start = new Date(ANNO_INIZIO);
+  const end = new Date(ANNO_FINE);
+  let d = new Date(start);
+  while(d.getDay() !== idx) d.setDate(d.getDate()+1);
+  const out = [];
+  while(d <= end){
+    if(!dentroChiusura(d, chiusure)) out.push(new Date(d));
+    d.setDate(d.getDate()+7);
+  }
+  return out;
+}
+
+/* ============================================================================
+   HELPERS DATI
+   ============================================================================ */
+function nomeCompleto(s){
+  return `${(s['Nome Allievo']||'').trim()} ${(s['Cognome Allievo']||'').trim()}`.trim();
+}
+
+function slug(str){
+  return encodeURIComponent(str.trim());
+}
+
+function linkFamiglia(nomeCompletoAllievo){
+  const url = new URL(location.href);
+  url.search = '';
+  url.searchParams.set('studente', nomeCompletoAllievo);
+  return url.toString();
+}
+
+function messaggioWhatsapp(genitore, allievo, link){
+  const testo = `Ciao ${genitore}, mamma/papà di ${allievo}! Questo è il tuo link personale per avere sempre sotto controllo calendario, canzoni e informazioni del corso di musica: ${link}\nPer qualsiasi dubbio resto a tua disposizione. A presto!\nLara`;
+  return testo;
+}
+
+/* ============================================================================
+   VISTA ADMIN
+   ============================================================================ */
+function renderAdmin(data){
+  const { studenti, chiusure, pagamenti, canzoni, annunci } = data;
+  const app = document.getElementById('app');
+
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
+  const idxOggi = oggi.getDay();
+
+  const lezioniOggi = studenti.filter(s => s['Giorno'] && GIORNI_SETTIMANA.indexOf(s['Giorno'].trim())===idxOggi
+    && oggi >= new Date(ANNO_INIZIO) && oggi <= new Date(ANNO_FINE) && !dentroChiusura(oggi, chiusure)).length;
+
+  const prossimaChiusura = chiusure
+    .map(c=>({...c, _dal: parseDataIt(c['Dal (gg/mm/aaaa)']||c['Dal'])}))
+    .filter(c=>c._dal && c._dal >= oggi)
+    .sort((a,b)=>a._dal-b._dal)[0];
+
+  const pagamentiDaRicevere = pagamenti.filter(p => (p['Pagato (Sì/No)']||p['Pagato']||'').trim().toLowerCase().startsWith('n'));
+
+  const setupMancante = !SHEETS.studenti && !SHEETS.chiusure && !SHEETS.pagamenti && !SHEETS.canzoni && !SHEETS.annunci;
+
+  // raggruppa studenti per famiglia (Nome Genitore + Email)
+  const famiglie = {};
+  studenti.forEach(s=>{
+    const key = (s['Nome Genitore']||'') + '|' + (s['Email Genitore']||'');
+    if(!famiglie[key]) famiglie[key] = { genitore: s['Nome Genitore']||'—', email: s['Email Genitore']||'', figli: [] };
+    famiglie[key].figli.push(s);
+  });
+  const listaFamiglie = Object.values(famiglie);
+
+  app.innerHTML = `
+    <div class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <span class="eyebrow">MusiCare — Area Admin</span>
+          <h1>Gestionale corsi</h1>
+        </div>
+        <div class="top-actions">
+          <a class="btn btn--outline" href="?" onclick="location.reload()">Aggiorna dati</a>
+        </div>
+      </div>
+
+      ${setupMancante ? `
+        <div class="setup-note">
+          Nessun foglio collegato ancora. Apri <code>app.js</code> e incolla i 5 link CSV pubblicati
+          dentro l'oggetto <code>SHEETS</code> in cima al file. Da quel momento questa pagina si popola da sola.
+        </div>` : ''}
+
+      <div class="admin-grid">
+        <div class="stat"><p class="stat-label">Studenti attivi</p><p class="stat-value">${studenti.length}</p></div>
+        <div class="stat"><p class="stat-label">Lezioni oggi</p><p class="stat-value">${lezioniOggi}</p></div>
+        <div class="stat"><p class="stat-label">Pagamenti da ricevere</p><p class="stat-value">${pagamentiDaRicevere.length}</p></div>
+        <div class="stat"><p class="stat-label">Prossima chiusura</p><p class="stat-value" style="font-size:1.15rem">${prossimaChiusura ? prossimaChiusura['Nome'] : '—'}</p>
+          ${prossimaChiusura ? `<p class="stat-sub">${fmtData(prossimaChiusura._dal)}</p>` : ''}
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Famiglie & link</h2>
+        <p class="section-note">Ogni famiglia ha un link personale generato automaticamente. Copialo o copia il messaggio già pronto da inviare su WhatsApp.</p>
+        ${listaFamiglie.length ? `<div class="family-list">${listaFamiglie.map(f=>{
+          const primoFiglio = nomeCompleto(f.figli[0]);
+          const link = linkFamiglia(primoFiglio);
+          const msg = messaggioWhatsapp(f.genitore, f.figli.map(nomeCompleto).join(' e '), link);
+          return `
+          <div class="family-card">
+            <div>
+              <div class="fam-name">${f.genitore}</div>
+              <div class="fam-kids">${f.figli.map(s=>`${nomeCompleto(s)} — ${s['Corso']||'corso da definire'}`).join(' · ')}</div>
+            </div>
+            <div class="fam-actions">
+              <button class="btn btn--ghost btn--sm" onclick="navigator.clipboard.writeText('${link.replace(/'/g,"\\'")}'); this.textContent='Copiato ✓'">Copia link</button>
+              <button class="btn btn--ghost btn--sm" onclick="navigator.clipboard.writeText(${JSON.stringify(msg)}); this.textContent='Copiato ✓'">Copia messaggio WhatsApp</button>
+            </div>
+          </div>`;
+        }).join('')}</div>` : `<div class="empty">Nessuno studente ancora. Aggiungi righe nel foglio "Studenti".</div>`}
+      </div>
+
+      <div class="section">
+        <h2>Chiusure e ponti</h2>
+        <p class="section-note">Anno 2026/27 — modificale direttamente sul foglio "Chiusure".</p>
+        ${chiusure.length ? `<div class="table-list">${chiusure.map(c=>`
+          <div class="table-row">
+            <span class="t-main">${c['Nome']}</span>
+            <span class="t-sub">${c['Dal (gg/mm/aaaa)']||c['Dal']} → ${c['Al (gg/mm/aaaa)']||c['Al']}</span>
+            <span class="tag tag--ok">${c['Tipo']||'—'}</span>
+          </div>`).join('')}</div>` : `<div class="empty">Nessuna chiusura registrata.</div>`}
+      </div>
+
+      <div class="section">
+        <h2>Pagamenti da ricevere</h2>
+        ${pagamentiDaRicevere.length ? `<div class="table-list">${pagamentiDaRicevere.map(p=>`
+          <div class="table-row">
+            <span class="t-main">${p['Studente (Nome Cognome)']||p['Studente']}</span>
+            <span class="t-sub">${p['Rata/Periodo']} — € ${p['Importo (€)']||p['Importo']}</span>
+            <span class="tag tag--warn">Scade ${p['Scadenza (gg/mm/aaaa)']||p['Scadenza']}</span>
+          </div>`).join('')}</div>` : `<div class="empty">Tutto in regola, nessun pagamento in sospeso.</div>`}
+      </div>
+
+      <div class="section">
+        <h2>Canzoni e materiali</h2>
+        ${canzoni.length ? `<div class="table-list">${canzoni.map(c=>`
+          <div class="table-row">
+            <span class="t-main">${c['Titolo']}</span>
+            <span class="t-sub">${c['Artista/Autore']||''}</span>
+            <span class="tag tag--ok">${c['Visibilità (Tutti/Corso)']||c['Visibilità']||'Tutti'}</span>
+          </div>`).join('')}</div>` : `<div class="empty">Nessuna canzone caricata ancora.</div>`}
+      </div>
+
+      <div class="section">
+        <h2>Annunci</h2>
+        ${annunci.length ? `<div class="table-list">${annunci.map(a=>`
+          <div class="table-row">
+            <span class="t-main">${a['Titolo']}</span>
+            <span class="t-sub">${a['Destinatari (Tutti/Corso)']||a['Destinatari']||'Tutti'}</span>
+            ${(a['Importante (Sì/No)']||'').toLowerCase().startsWith('s') ? '<span class="tag tag--warn">Importante</span>' : ''}
+          </div>`).join('')}</div>` : `<div class="empty">Nessun annuncio pubblicato.</div>`}
+      </div>
+    </div>
+  `;
+}
+
+/* ============================================================================
+   VISTA HOME FAMIGLIA
+   ============================================================================ */
+function renderFamiglia(data, nomeStudente){
+  const { studenti, chiusure, pagamenti, canzoni, annunci } = data;
+  const app = document.getElementById('app');
+
+  const iscrizioni = studenti.filter(s => nomeCompleto(s).toLowerCase() === nomeStudente.toLowerCase());
+
+  if(!iscrizioni.length){
+    app.innerHTML = `
+      <div class="shell">
+        <div class="topbar"><div class="brand"><span class="eyebrow">MusiCare</span><h1>Home famiglia</h1></div></div>
+        <div class="empty">Non troviamo questo link. Se pensi sia un errore, scrivi a <a href="mailto:${INFO.email}">${INFO.email}</a>.</div>
+      </div>`;
+    return;
+  }
+
+  const primoNome = (iscrizioni[0]['Nome Allievo']||'').trim();
+  const corsiStudente = iscrizioni.map(s=>s['Corso']).filter(Boolean);
+
+  // prossima lezione tra tutte le iscrizioni
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
+  let prossima = null;
+  iscrizioni.forEach(s=>{
+    if(!s['Giorno']) return;
+    const occ = generaOccorrenze(s['Giorno'].trim(), chiusure).filter(d=>d>=oggi);
+    if(occ.length && (!prossima || occ[0] < prossima.data)){
+      prossima = { data: occ[0], corso: s['Corso'], orario: s['Orario'], sede: s['Sede'] };
+    }
+  });
+
+  const annunciRilevanti = annunci.filter(a=>{
+    const dest = (a['Destinatari (Tutti/Corso)']||a['Destinatari']||'Tutti').trim();
+    if(dest === 'Tutti') return true;
+    return corsiStudente.includes(a['Corso (se Destinatari=Corso)']||a['Corso']);
+  });
+  const annunciImportanti = annunciRilevanti.filter(a=>(a['Importante (Sì/No)']||'').toLowerCase().startsWith('s'));
+
+  const canzoniStudente = canzoni.filter(c=>{
+    const vis = (c['Visibilità (Tutti/Corso)']||c['Visibilità']||'Tutti').trim();
+    if(vis === 'Tutti') return true;
+    return corsiStudente.includes(c['Corso (se Visibilità=Corso)']||c['Corso']);
+  });
+
+  app.innerHTML = `
+    <div class="shell">
+      <div class="fam-hero">
+        <span class="fam-eyebrow">MusiCare</span>
+        <h1>Ciao, ${primoNome}!</h1>
+        <p class="fam-tag">Musica per educare, crescere, nutrire.</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab is-active" data-tab="home">Home</button>
+        <button class="tab" data-tab="calendario">Calendario</button>
+        <button class="tab" data-tab="canzoni">Canzoni</button>
+        <button class="tab" data-tab="info">Info</button>
+      </div>
+
+      <div class="tab-panel is-active" id="panel-home">
+        ${prossima ? `
+        <div class="next-lesson">
+          <p class="nl-label">Prossima lezione</p>
+          <p class="nl-date">${fmtData(prossima.data)}${prossima.orario ? ' · '+prossima.orario : ''}</p>
+          <p class="nl-course">${prossima.corso||''}${prossima.sede ? ' — '+prossima.sede : ''}</p>
+        </div>` : ''}
+
+        ${annunciImportanti.map(a=>`
+          <div class="announce"><h3>${a['Titolo']}</h3><p>${a['Testo']}</p></div>
+        `).join('')}
+
+        <div class="section">
+          <h2>Le tue iscrizioni</h2>
+          ${iscrizioni.map(s=>`
+            <div class="enroll-card">
+              <span class="e-course">${s['Corso']||'Corso da definire'}</span>
+              <p style="margin:4px 0 0" class="t-sub">
+                ${s['Giorno'] && s['Orario'] ? `${s['Giorno']} · ${s['Orario']} — ${s['Sede']||''} · Confermato` : 'In fase di conferma'}
+              </p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="tab-panel" id="panel-calendario">
+        ${renderCalendarioHtml(iscrizioni, chiusure)}
+      </div>
+
+      <div class="tab-panel" id="panel-canzoni">
+        ${canzoniStudente.length ? canzoniStudente.map(c=>`
+          <div class="song">
+            <div><div class="s-title">${c['Titolo']}</div><div class="s-artist">${c['Artista/Autore']||''}</div></div>
+            <a class="btn btn--outline btn--sm" href="${c['Link Audio/Video']||c['Link']||'#'}" target="_blank" rel="noopener">Ascolta</a>
+          </div>
+        `).join('') : `<div class="empty">Nessuna canzone disponibile ancora per il tuo corso.</div>`}
+      </div>
+
+      <div class="tab-panel" id="panel-info">
+        <div class="info-block">
+          <h3>Come funzionano i pagamenti</h3>
+          <p>Se non hai ancora effettuato l'iscrizione e il pagamento del corso puoi farlo qui: <a href="${INFO.formPagamento}" target="_blank" rel="noopener">modulo di pagamento</a>.</p>
+          <p>Una volta ricevuto il messaggio con l'importo specifico, puoi versarlo su questo IBAN: <strong>${INFO.iban}</strong> intestato a <strong>${INFO.intestatario}</strong>, causale: nome e cognome dell'allievo.</p>
+        </div>
+        <div class="info-block">
+          <h3>Istruzioni per il pacchetto "1, 2, 3, PROVA!"</h3>
+          <p>Ecco delle semplici istruzioni per il mese di prova (4 lezioni):</p>
+          <ul>
+            <li>Ci vediamo 5 minuti prima dell'ora della tua lezione nella sede scelta.</li>
+            <li>La durata della lezione è di circa quaranta minuti: fai attenzione alla puntualità, sia in entrata che in uscita.</li>
+            <li>All'ingresso trovi appendiabiti e cassetti porta scarpe: lascia lì le scarpe e appendi zainetti, borse e giubbotti. Per la lezione servono calzini antiscivolo per grandi e piccoli.</li>
+            <li>In caso di imprevisto, avvisami via WhatsApp prima della lezione al ${INFO.telefono}.</li>
+          </ul>
+        </div>
+        <div class="info-block">
+          <h3>Recuperi</h3>
+          <p>Per i recuperi puoi contattarmi per fissarli tutto l'anno, in un corso equivalente al tuo durante la settimana, in una delle tre sedi disponibili.</p>
+        </div>
+        <div class="info-block">
+          <h3>Scheda d'iscrizione</h3>
+          <p>Il modulo può essere compilato qui: <a href="${INFO.formIscrizione}" target="_blank" rel="noopener">scheda di iscrizione</a>. Compilandone uno nuovo, sostituisce quello attuale.</p>
+        </div>
+        <div class="info-block">
+          <h3>Contatti</h3>
+          <p>WhatsApp: ${INFO.telefono} · Email: <a href="mailto:${INFO.email}">${INFO.email}</a></p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  app.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      app.querySelectorAll('.tab').forEach(b=>b.classList.remove('is-active'));
+      app.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      document.getElementById('panel-'+btn.dataset.tab).classList.add('is-active');
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+}
+
+function renderCalendarioHtml(iscrizioni, chiusure){
+  const perCorso = iscrizioni.map(s=>{
+    if(!s['Giorno']) return null;
+    return { corso: s['Corso'], orario: s['Orario'], sede: s['Sede'], occ: generaOccorrenze(s['Giorno'].trim(), chiusure) };
+  }).filter(Boolean);
+
+  if(!perCorso.length) return `<div class="empty">Il calendario apparirà qui appena il tuo corso avrà giorno e orario confermati.</div>`;
+
+  // raggruppa tutte le date per mese
+  const perMese = {};
+  perCorso.forEach(p=>{
+    p.occ.forEach(d=>{
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if(!perMese[key]) perMese[key] = [];
+      perMese[key].push({ data:d, corso:p.corso, orario:p.orario, sede:p.sede });
+    });
+  });
+
+  return Object.keys(perMese).sort().map(key=>{
+    const [y,m] = key.split('-').map(Number);
+    const items = perMese[key].sort((a,b)=>a.data-b.data);
+    return `
+      <div class="cal-month">
+        <h3>${MESI[m]} ${y}</h3>
+        ${items.map(i=>`
+          <div class="cal-item">
+            <span class="c-date">${fmtData(i.data)}</span>
+            <span>${i.orario||''} ${i.corso ? '· '+i.corso : ''} ${i.sede ? '— '+i.sede : ''}</span>
+          </div>
+        `).join('')}
+      </div>`;
+  }).join('');
+}
+
+/* ============================================================================
+   ROUTER
+   ============================================================================ */
+async function init(){
+  const params = new URLSearchParams(location.search);
+  const studente = params.get('studente');
+  const data = await loadAllData();
+  if(studente) renderFamiglia(data, studente);
+  else renderAdmin(data);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
