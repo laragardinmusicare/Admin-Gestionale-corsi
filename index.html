@@ -81,6 +81,21 @@ img{ max-width:100%; }
 
 .empty{ padding:26px 20px; text-align:center; color:var(--ink-soft); font-size:.9rem; border:1px dashed var(--line); border-radius:16px; }
 
+.form-card{
+  background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px 22px; margin-bottom:16px;
+  display:flex; flex-direction:column; gap:12px;
+}
+.form-card .f-row{ display:flex; gap:14px; flex-wrap:wrap; }
+.form-card label{ flex:1; min-width:150px; display:flex; flex-direction:column; gap:5px; font-size:.8rem; font-weight:700; color:var(--ink-soft); }
+.form-card label.f-check{ flex-direction:row; align-items:center; gap:8px; font-weight:600; }
+.form-card input, .form-card select{
+  font-family:var(--f-body); font-size:.92rem; padding:9px 11px; border-radius:10px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+}
+.form-card input:focus, .form-card select:focus{ outline:2px solid var(--teal); outline-offset:1px; }
+.form-card .btn{ align-self:flex-start; }
+.form-msg{ font-size:.82rem; color:var(--teal); font-weight:700; }
+
 /* ---------- home famiglia ---------- */
 .fam-hero{ text-align:center; padding:10px 0 8px; }
 .fam-hero .fam-eyebrow{ font-weight:700; font-size:.74rem; letter-spacing:.12em; text-transform:uppercase; color:var(--rose); }
@@ -137,29 +152,17 @@ img{ max-width:100%; }
 <div id="app">
   <div class="shell"><p style="padding:60px 0; text-align:center; color:var(--ink-soft)">Caricamento...</p></div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>
 /* ============================================================================
    MUSICARE — GESTIONALE
    ----------------------------------------------------------------------------
    COME COLLEGARE I TUOI DATI
-   Quando i tuoi fogli Google sono pronti e pubblicati sul web come CSV,
-   incolla i 5 link qui sotto, tra le virgolette. Tutto il resto si aggiorna
-   da solo, ogni volta che modifichi un foglio.
+   Incolla qui sotto, tra le virgolette, l'indirizzo del tuo "Web App" di
+   Google Apps Script (finisce con /exec). Istruzioni nel messaggio ricevuto.
    ============================================================================ */
 
-const PUB_KEY = '2PACX-1vRLzx0SbMvVW__-qkpsXtwXtOYIkL_8gOv9ZJ6PHBgwdWyrQXw899BNboBF0MUKVQ';
-function csvUrl(gid){ return `https://docs.google.com/spreadsheets/d/e/${PUB_KEY}/pub?gid=${gid}&single=true&output=csv`; }
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzyb4eD96OsETN6EcVhXtUKjp02lnjXTvJz-fbOoZf9c7Zheq2x2fhgv5sDtc-uB6Ek/exec';
 
-const SHEETS = {
-  studenti:  csvUrl('2016135318'),
-  chiusure:  csvUrl('483533595'),
-  pagamenti: csvUrl('1549827686'),
-  canzoni:   csvUrl('408730944'),
-  annunci:   csvUrl('1491722840'),
-};
-
-// Anno scolastico dei corsi
 const ANNO_INIZIO = '2026-10-01';
 const ANNO_FINE   = '2027-05-31';
 
@@ -174,57 +177,56 @@ const INFO = {
 
 const GIORNI_SETTIMANA = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
 const MESI = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+const TIPI_CHIUSURA = ['Festività','Vacanze','Ponte','Chiusura organizzata','Festività locale','Altro'];
 
 /* ============================================================================
-   CARICAMENTO DATI (Google Sheets pubblicati come CSV)
+   LETTURA E SCRITTURA DATI (tramite lo script Google)
    ============================================================================ */
-function fetchSheet(url){
-  return new Promise((resolve)=>{
-    if(!url){ resolve([]); return; }
-    if(typeof Papa === 'undefined'){ resolve([]); return; }
-    Papa.parse(url, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: (res)=> resolve(res.data || []),
-      error: ()=> resolve([])
-    });
-  });
+async function loadAllData(){
+  if(!SCRIPT_URL) return { studenti:[], chiusure:[], pagamenti:[], canzoni:[], annunci:[] };
+  try{
+    const res = await fetch(SCRIPT_URL);
+    const raw = await res.json();
+    return {
+      studenti:  raw.Studenti  || [],
+      chiusure:  raw.Chiusure  || [],
+      pagamenti: raw.Pagamenti || [],
+      canzoni:   raw.Canzoni   || [],
+      annunci:   raw.Annunci   || [],
+    };
+  }catch(err){
+    console.error('Errore caricamento dati', err);
+    return { studenti:[], chiusure:[], pagamenti:[], canzoni:[], annunci:[], _errore:true };
+  }
 }
 
-async function loadAllData(){
-  const [studenti, chiusure, pagamenti, canzoni, annunci] = await Promise.all([
-    fetchSheet(SHEETS.studenti),
-    fetchSheet(SHEETS.chiusure),
-    fetchSheet(SHEETS.pagamenti),
-    fetchSheet(SHEETS.canzoni),
-    fetchSheet(SHEETS.annunci),
-  ]);
-  return { studenti, chiusure, pagamenti, canzoni, annunci };
+async function salvaRiga(action, data){
+  if(!SCRIPT_URL) return { success:false, error:'Nessuno script collegato' };
+  try{
+    const res = await fetch(SCRIPT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action, data })
+    });
+    return await res.json();
+  }catch(err){
+    return { success:false, error:String(err) };
+  }
 }
 
 /* ============================================================================
    DATE E CALENDARIO
    ============================================================================ */
 function parseDataIt(str){
-  // accetta gg/mm/aaaa oppure aaaa-mm-gg (Google a volte esporta così)
   if(!str) return null;
-  str = str.trim();
+  str = String(str).trim();
   let m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if(m) return new Date(+m[3], +m[2]-1, +m[1]);
   m = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if(m) return new Date(+m[1], +m[2]-1, +m[3]);
   return null;
 }
-
-function fmtData(d){
-  return `${GIORNI_SETTIMANA[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`;
-}
-
-function stessoGiorno(a,b){
-  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-}
-
+function fmtData(d){ return `${GIORNI_SETTIMANA[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`; }
 function dentroChiusura(data, chiusure){
   return chiusure.some(c=>{
     const dal = parseDataIt(c['Dal (gg/mm/aaaa)'] || c['Dal']);
@@ -233,8 +235,6 @@ function dentroChiusura(data, chiusure){
     return data >= dal && data <= al;
   });
 }
-
-// genera tutte le occorrenze settimanali di un giorno tra inizio e fine anno, escludendo le chiusure
 function generaOccorrenze(nomeGiorno, chiusure){
   const idx = GIORNI_SETTIMANA.indexOf(nomeGiorno);
   if(idx < 0) return [];
@@ -251,323 +251,263 @@ function generaOccorrenze(nomeGiorno, chiusure){
 }
 
 /* ============================================================================
-   HELPERS DATI
+   HELPERS
    ============================================================================ */
-function nomeCompleto(s){
-  return `${(s['Nome Allievo']||'').trim()} ${(s['Cognome Allievo']||'').trim()}`.trim();
-}
-
-function slug(str){
-  return encodeURIComponent(str.trim());
-}
-
-function linkFamiglia(nomeCompletoAllievo){
-  const url = new URL(location.href);
-  url.search = '';
-  url.searchParams.set('studente', nomeCompletoAllievo);
+function nomeCompleto(s){ return `${(s['Nome Allievo']||'').trim()} ${(s['Cognome Allievo']||'').trim()}`.trim(); }
+function linkFamiglia(nome){
+  const url = new URL(location.href); url.search='';
+  url.searchParams.set('studente', nome);
   return url.toString();
 }
-
 function messaggioWhatsapp(genitore, allievo, link){
-  const testo = `Ciao ${genitore}, mamma/papà di ${allievo}! Questo è il tuo link personale per avere sempre sotto controllo calendario, canzoni e informazioni del corso di musica: ${link}\nPer qualsiasi dubbio resto a tua disposizione. A presto!\nLara`;
-  return testo;
+  return `Ciao ${genitore}, mamma/papà di ${allievo}! Questo è il tuo link personale per avere sempre sotto controllo calendario, canzoni e informazioni del corso di musica: ${link}\nPer qualsiasi dubbio resto a tua disposizione. A presto!\nLara`;
 }
+function escAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+function opt(list, selected){ return list.map(v=>`<option value="${v}" ${v===selected?'selected':''}>${v}</option>`).join(''); }
 
 /* ============================================================================
    VISTA ADMIN
    ============================================================================ */
+let CURRENT_DATA = null;
+
+async function refreshAdmin(){
+  CURRENT_DATA = await loadAllData();
+  renderAdmin(CURRENT_DATA);
+}
+
 function renderAdmin(data){
   const { studenti, chiusure, pagamenti, canzoni, annunci } = data;
   const app = document.getElementById('app');
-
   const oggi = new Date(); oggi.setHours(0,0,0,0);
   const idxOggi = oggi.getDay();
 
-  const lezioniOggi = studenti.filter(s => s['Giorno'] && GIORNI_SETTIMANA.indexOf(s['Giorno'].trim())===idxOggi
+  const lezioniOggi = studenti.filter(s => s['Giorno'] && GIORNI_SETTIMANA.indexOf(String(s['Giorno']).trim())===idxOggi
     && oggi >= new Date(ANNO_INIZIO) && oggi <= new Date(ANNO_FINE) && !dentroChiusura(oggi, chiusure)).length;
 
   const prossimaChiusura = chiusure
     .map(c=>({...c, _dal: parseDataIt(c['Dal (gg/mm/aaaa)']||c['Dal'])}))
-    .filter(c=>c._dal && c._dal >= oggi)
-    .sort((a,b)=>a._dal-b._dal)[0];
+    .filter(c=>c._dal && c._dal >= oggi).sort((a,b)=>a._dal-b._dal)[0];
 
-  const pagamentiDaRicevere = pagamenti.filter(p => (p['Pagato (Sì/No)']||p['Pagato']||'').trim().toLowerCase().startsWith('n'));
+  const pagamentiDaRicevere = pagamenti.filter(p => String(p['Pagato (Sì/No)']||p['Pagato']||'').trim().toLowerCase().startsWith('n'));
 
-  const setupMancante = !SHEETS.studenti && !SHEETS.chiusure && !SHEETS.pagamenti && !SHEETS.canzoni && !SHEETS.annunci;
-
-  // raggruppa studenti per famiglia (Nome Genitore + Email)
   const famiglie = {};
   studenti.forEach(s=>{
     const key = (s['Nome Genitore']||'') + '|' + (s['Email Genitore']||'');
-    if(!famiglie[key]) famiglie[key] = { genitore: s['Nome Genitore']||'—', email: s['Email Genitore']||'', figli: [] };
+    if(!famiglie[key]) famiglie[key] = { genitore: s['Nome Genitore']||'—', figli: [] };
     famiglie[key].figli.push(s);
   });
   const listaFamiglie = Object.values(famiglie);
+  const nomiStudentiOpt = studenti.map(nomeCompleto).filter(Boolean);
+  const corsiEsistenti = [...new Set(studenti.map(s=>s['Corso']).filter(Boolean))];
 
   app.innerHTML = `
     <div class="shell">
       <div class="topbar">
-        <div class="brand">
-          <span class="eyebrow">MusiCare — Area Admin</span>
-          <h1>Gestionale corsi</h1>
-        </div>
-        <div class="top-actions">
-          <a class="btn btn--outline" href="?" onclick="location.reload()">Aggiorna dati</a>
-        </div>
+        <div class="brand"><span class="eyebrow">MusiCare — Area Admin</span><h1>Gestionale corsi</h1></div>
+        <div class="top-actions"><button class="btn btn--outline" id="btn-refresh">Aggiorna dati</button></div>
       </div>
 
-      ${setupMancante ? `
-        <div class="setup-note">
-          Nessun foglio collegato ancora. Apri <code>app.js</code> e incolla i 5 link CSV pubblicati
-          dentro l'oggetto <code>SHEETS</code> in cima al file. Da quel momento questa pagina si popola da sola.
-        </div>` : ''}
+      ${!SCRIPT_URL ? `<div class="setup-note">Nessuno script collegato ancora. Apri <code>app.js</code> e incolla il link del tuo Web App (finisce con <code>/exec</code>) dentro <code>SCRIPT_URL</code> in cima al file.</div>` : ''}
+      ${data._errore ? `<div class="setup-note">Non riesco a leggere i dati: controlla che il link dello script sia corretto e che sia pubblicato con accesso "Chiunque abbia il link".</div>` : ''}
 
       <div class="admin-grid">
         <div class="stat"><p class="stat-label">Studenti attivi</p><p class="stat-value">${studenti.length}</p></div>
         <div class="stat"><p class="stat-label">Lezioni oggi</p><p class="stat-value">${lezioniOggi}</p></div>
         <div class="stat"><p class="stat-label">Pagamenti da ricevere</p><p class="stat-value">${pagamentiDaRicevere.length}</p></div>
-        <div class="stat"><p class="stat-label">Prossima chiusura</p><p class="stat-value" style="font-size:1.15rem">${prossimaChiusura ? prossimaChiusura['Nome'] : '—'}</p>
-          ${prossimaChiusura ? `<p class="stat-sub">${fmtData(prossimaChiusura._dal)}</p>` : ''}
-        </div>
+        <div class="stat"><p class="stat-label">Prossima chiusura</p><p class="stat-value" style="font-size:1.15rem">${prossimaChiusura ? prossimaChiusura['Nome'] : '—'}</p>${prossimaChiusura?`<p class="stat-sub">${fmtData(prossimaChiusura._dal)}</p>`:''}</div>
+      </div>
+
+      <div class="section">
+        <h2>Nuovo studente</h2>
+        <form class="form-card" id="form-studente">
+          <div class="f-row"><label>Nome allievo<input name="Nome Allievo" required></label><label>Cognome allievo<input name="Cognome Allievo" required></label></div>
+          <div class="f-row"><label>Nome genitore<input name="Nome Genitore" required></label><label>Email genitore<input name="Email Genitore" type="email"></label></div>
+          <div class="f-row"><label>Telefono genitore<input name="Telefono Genitore"></label><label>Corso<input name="Corso" list="lista-corsi"><datalist id="lista-corsi">${corsiEsistenti.map(c=>`<option value="${escAttr(c)}">`).join('')}</datalist></label></div>
+          <div class="f-row">
+            <label>Giorno<select name="Giorno"><option value="">— da definire —</option>${opt(GIORNI_SETTIMANA.slice(1).concat(GIORNI_SETTIMANA[0]))}</select></label>
+            <label>Orario<input name="Orario" placeholder="17:50"></label>
+            <label>Sede<input name="Sede"></label>
+          </div>
+          <button class="btn btn--solid" type="submit">Aggiungi studente</button>
+          <span class="form-msg"></span>
+        </form>
       </div>
 
       <div class="section">
         <h2>Famiglie & link</h2>
-        <p class="section-note">Ogni famiglia ha un link personale generato automaticamente. Copialo o copia il messaggio già pronto da inviare su WhatsApp.</p>
+        <p class="section-note">Link personale e messaggio WhatsApp pronti da copiare per ogni famiglia.</p>
         ${listaFamiglie.length ? `<div class="family-list">${listaFamiglie.map(f=>{
-          const primoFiglio = nomeCompleto(f.figli[0]);
-          const link = linkFamiglia(primoFiglio);
+          const primo = nomeCompleto(f.figli[0]);
+          const link = linkFamiglia(primo);
           const msg = messaggioWhatsapp(f.genitore, f.figli.map(nomeCompleto).join(' e '), link);
-          return `
-          <div class="family-card">
-            <div>
-              <div class="fam-name">${f.genitore}</div>
-              <div class="fam-kids">${f.figli.map(s=>`${nomeCompleto(s)} — ${s['Corso']||'corso da definire'}`).join(' · ')}</div>
-            </div>
+          return `<div class="family-card">
+            <div><div class="fam-name">${f.genitore}</div><div class="fam-kids">${f.figli.map(s=>`${nomeCompleto(s)} — ${s['Corso']||'corso da definire'}`).join(' · ')}</div></div>
             <div class="fam-actions">
-              <button class="btn btn--ghost btn--sm" onclick="navigator.clipboard.writeText('${link.replace(/'/g,"\\'")}'); this.textContent='Copiato ✓'">Copia link</button>
-              <button class="btn btn--ghost btn--sm" onclick="navigator.clipboard.writeText(${JSON.stringify(msg)}); this.textContent='Copiato ✓'">Copia messaggio WhatsApp</button>
-            </div>
-          </div>`;
-        }).join('')}</div>` : `<div class="empty">Nessuno studente ancora. Aggiungi righe nel foglio "Studenti".</div>`}
+              <button class="btn btn--ghost btn--sm" data-copy="${escAttr(link)}">Copia link</button>
+              <button class="btn btn--ghost btn--sm" data-copy="${escAttr(msg)}">Copia messaggio WhatsApp</button>
+            </div></div>`;
+        }).join('')}</div>` : `<div class="empty">Nessuno studente ancora: aggiungilo dal modulo qui sopra.</div>`}
       </div>
 
       <div class="section">
         <h2>Chiusure e ponti</h2>
-        <p class="section-note">Anno 2026/27 — modificale direttamente sul foglio "Chiusure".</p>
-        ${chiusure.length ? `<div class="table-list">${chiusure.map(c=>`
-          <div class="table-row">
-            <span class="t-main">${c['Nome']}</span>
-            <span class="t-sub">${c['Dal (gg/mm/aaaa)']||c['Dal']} → ${c['Al (gg/mm/aaaa)']||c['Al']}</span>
-            <span class="tag tag--ok">${c['Tipo']||'—'}</span>
-          </div>`).join('')}</div>` : `<div class="empty">Nessuna chiusura registrata.</div>`}
+        <form class="form-card" id="form-chiusura">
+          <div class="f-row"><label>Nome<input name="Nome" required></label><label>Tipo<select name="Tipo">${opt(TIPI_CHIUSURA)}</select></label></div>
+          <div class="f-row"><label>Dal<input name="Dal (gg/mm/aaaa)" type="date" required></label><label>Al<input name="Al (gg/mm/aaaa)" type="date"></label></div>
+          <div class="f-row"><label>Note<input name="Note"></label></div>
+          <button class="btn btn--solid" type="submit">Salva chiusura</button>
+          <span class="form-msg"></span>
+        </form>
+        ${chiusure.length ? `<div class="table-list">${chiusure.map(c=>`<div class="table-row"><span class="t-main">${c['Nome']}</span><span class="t-sub">${c['Dal (gg/mm/aaaa)']||c['Dal']} → ${c['Al (gg/mm/aaaa)']||c['Al']}</span><span class="tag tag--ok">${c['Tipo']||'—'}</span></div>`).join('')}</div>` : `<div class="empty">Nessuna chiusura registrata.</div>`}
       </div>
 
       <div class="section">
-        <h2>Pagamenti da ricevere</h2>
-        ${pagamentiDaRicevere.length ? `<div class="table-list">${pagamentiDaRicevere.map(p=>`
-          <div class="table-row">
-            <span class="t-main">${p['Studente (Nome Cognome)']||p['Studente']}</span>
-            <span class="t-sub">${p['Rata/Periodo']} — € ${p['Importo (€)']||p['Importo']}</span>
-            <span class="tag tag--warn">Scade ${p['Scadenza (gg/mm/aaaa)']||p['Scadenza']}</span>
-          </div>`).join('')}</div>` : `<div class="empty">Tutto in regola, nessun pagamento in sospeso.</div>`}
+        <h2>Pagamenti</h2>
+        <form class="form-card" id="form-pagamento">
+          <div class="f-row"><label>Studente<select name="Studente (Nome Cognome)" required><option value="">— scegli —</option>${opt(nomiStudentiOpt)}</select></label><label>Rata/Periodo<input name="Rata/Periodo" placeholder="Rata 2 — Gennaio"></label></div>
+          <div class="f-row"><label>Importo (€)<input name="Importo (€)" type="number" step="0.01"></label><label>Scadenza<input name="Scadenza (gg/mm/aaaa)" type="date"></label></div>
+          <input type="hidden" name="Pagato (Sì/No)" value="No">
+          <button class="btn btn--solid" type="submit">Registra pagamento</button>
+          <span class="form-msg"></span>
+        </form>
+        ${pagamentiDaRicevere.length ? `<div class="table-list">${pagamentiDaRicevere.map(p=>`<div class="table-row"><span class="t-main">${p['Studente (Nome Cognome)']||p['Studente']}</span><span class="t-sub">${p['Rata/Periodo']} — € ${p['Importo (€)']||p['Importo']}</span><span class="tag tag--warn">Scade ${p['Scadenza (gg/mm/aaaa)']||p['Scadenza']}</span></div>`).join('')}</div>` : `<div class="empty">Nessun pagamento in sospeso.</div>`}
       </div>
 
       <div class="section">
         <h2>Canzoni e materiali</h2>
-        ${canzoni.length ? `<div class="table-list">${canzoni.map(c=>`
-          <div class="table-row">
-            <span class="t-main">${c['Titolo']}</span>
-            <span class="t-sub">${c['Artista/Autore']||''}</span>
-            <span class="tag tag--ok">${c['Visibilità (Tutti/Corso)']||c['Visibilità']||'Tutti'}</span>
-          </div>`).join('')}</div>` : `<div class="empty">Nessuna canzone caricata ancora.</div>`}
+        <form class="form-card" id="form-canzone">
+          <div class="f-row"><label>Titolo<input name="Titolo" required></label><label>Artista/Autore<input name="Artista/Autore"></label></div>
+          <div class="f-row"><label>Descrizione<input name="Descrizione"></label><label>Link Audio/Video<input name="Link Audio/Video" type="url"></label></div>
+          <div class="f-row"><label>Visibilità<select name="Visibilità (Tutti/Corso)" id="vis-canzone"><option>Tutti</option><option>Corso</option></select></label><label>Corso (se Corso)<input name="Corso (se Visibilità=Corso)" list="lista-corsi2"><datalist id="lista-corsi2">${corsiEsistenti.map(c=>`<option value="${escAttr(c)}">`).join('')}</datalist></label></div>
+          <button class="btn btn--solid" type="submit">Pubblica canzone</button>
+          <span class="form-msg"></span>
+        </form>
+        ${canzoni.length ? `<div class="table-list">${canzoni.map(c=>`<div class="table-row"><span class="t-main">${c['Titolo']}</span><span class="t-sub">${c['Artista/Autore']||''}</span><span class="tag tag--ok">${c['Visibilità (Tutti/Corso)']||c['Visibilità']||'Tutti'}</span></div>`).join('')}</div>` : `<div class="empty">Nessuna canzone caricata ancora.</div>`}
       </div>
 
       <div class="section">
         <h2>Annunci</h2>
-        ${annunci.length ? `<div class="table-list">${annunci.map(a=>`
-          <div class="table-row">
-            <span class="t-main">${a['Titolo']}</span>
-            <span class="t-sub">${a['Destinatari (Tutti/Corso)']||a['Destinatari']||'Tutti'}</span>
-            ${(a['Importante (Sì/No)']||'').toLowerCase().startsWith('s') ? '<span class="tag tag--warn">Importante</span>' : ''}
-          </div>`).join('')}</div>` : `<div class="empty">Nessun annuncio pubblicato.</div>`}
+        <form class="form-card" id="form-annuncio">
+          <div class="f-row"><label>Titolo<input name="Titolo" required></label><label>Destinatari<select name="Destinatari (Tutti/Corso)"><option>Tutti</option><option>Corso</option></select></label></div>
+          <div class="f-row"><label>Testo<input name="Testo"></label><label>Corso (se Corso)<input name="Corso (se Destinatari=Corso)" list="lista-corsi3"><datalist id="lista-corsi3">${corsiEsistenti.map(c=>`<option value="${escAttr(c)}">`).join('')}</datalist></label></div>
+          <div class="f-row"><label class="f-check"><input type="checkbox" name="__importante"> Importante — mostra anche in Home</label></div>
+          <input type="hidden" name="Importante (Sì/No)" value="No">
+          <button class="btn btn--solid" type="submit">Pubblica annuncio</button>
+          <span class="form-msg"></span>
+        </form>
+        ${annunci.length ? `<div class="table-list">${annunci.map(a=>`<div class="table-row"><span class="t-main">${a['Titolo']}</span><span class="t-sub">${a['Destinatari (Tutti/Corso)']||a['Destinatari']||'Tutti'}</span>${String(a['Importante (Sì/No)']||'').toLowerCase().startsWith('s')?'<span class="tag tag--warn">Importante</span>':''}</div>`).join('')}</div>` : `<div class="empty">Nessun annuncio pubblicato.</div>`}
       </div>
     </div>
   `;
+
+  document.getElementById('btn-refresh').addEventListener('click', refreshAdmin);
+  app.querySelectorAll('[data-copy]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ navigator.clipboard.writeText(btn.dataset.copy); const old=btn.textContent; btn.textContent='Copiato ✓'; setTimeout(()=>btn.textContent=old,1500); });
+  });
+
+  collegaForm('form-studente', 'addStudente');
+  collegaForm('form-chiusura', 'addChiusura', formatDateFields(['Dal (gg/mm/aaaa)','Al (gg/mm/aaaa)']));
+  collegaForm('form-pagamento', 'addPagamento', formatDateFields(['Scadenza (gg/mm/aaaa)']));
+  collegaForm('form-canzone', 'addCanzone');
+  collegaForm('form-annuncio', 'addAnnuncio', (fd)=>{ fd['Importante (Sì/No)'] = fd['__importante'] ? 'Sì' : 'No'; delete fd['__importante']; return fd; });
+}
+
+function formatDateFields(campi){
+  return (fd)=>{ campi.forEach(c=>{ if(fd[c]){ const [y,m,d] = fd[c].split('-'); fd[c] = `${d}/${m}/${y}`; } }); return fd; };
+}
+
+function collegaForm(id, action, trasforma){
+  const form = document.getElementById(id);
+  if(!form) return;
+  form.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const msg = form.querySelector('.form-msg');
+    const fd = Object.fromEntries(new FormData(form).entries());
+    // checkbox non selezionate non arrivano in FormData: aggiungile come stringa vuota
+    form.querySelectorAll('input[type=checkbox]').forEach(cb=>{ if(!(cb.name in fd)) fd[cb.name]=''; else fd[cb.name]='on'; });
+    const dati = trasforma ? trasforma(fd) : fd;
+    msg.textContent = 'Salvataggio...';
+    const risposta = await salvaRiga(action, dati);
+    if(risposta.success){
+      msg.textContent = 'Salvato ✓';
+      form.reset();
+      await refreshAdmin();
+    } else {
+      msg.textContent = 'Errore: ' + (risposta.error || 'riprova');
+    }
+  });
 }
 
 /* ============================================================================
-   VISTA HOME FAMIGLIA
+   VISTA HOME FAMIGLIA (invariata)
    ============================================================================ */
 function renderFamiglia(data, nomeStudente){
-  const { studenti, chiusure, pagamenti, canzoni, annunci } = data;
+  const { studenti, chiusure, canzoni, annunci } = data;
   const app = document.getElementById('app');
-
   const iscrizioni = studenti.filter(s => nomeCompleto(s).toLowerCase() === nomeStudente.toLowerCase());
 
   if(!iscrizioni.length){
-    app.innerHTML = `
-      <div class="shell">
-        <div class="topbar"><div class="brand"><span class="eyebrow">MusiCare</span><h1>Home famiglia</h1></div></div>
-        <div class="empty">Non troviamo questo link. Se pensi sia un errore, scrivi a <a href="mailto:${INFO.email}">${INFO.email}</a>.</div>
-      </div>`;
+    app.innerHTML = `<div class="shell"><div class="topbar"><div class="brand"><span class="eyebrow">MusiCare</span><h1>Home famiglia</h1></div></div><div class="empty">Non troviamo questo link. Se pensi sia un errore, scrivi a <a href="mailto:${INFO.email}">${INFO.email}</a>.</div></div>`;
     return;
   }
 
   const primoNome = (iscrizioni[0]['Nome Allievo']||'').trim();
   const corsiStudente = iscrizioni.map(s=>s['Corso']).filter(Boolean);
-
-  // prossima lezione tra tutte le iscrizioni
   const oggi = new Date(); oggi.setHours(0,0,0,0);
   let prossima = null;
   iscrizioni.forEach(s=>{
     if(!s['Giorno']) return;
-    const occ = generaOccorrenze(s['Giorno'].trim(), chiusure).filter(d=>d>=oggi);
-    if(occ.length && (!prossima || occ[0] < prossima.data)){
-      prossima = { data: occ[0], corso: s['Corso'], orario: s['Orario'], sede: s['Sede'] };
-    }
+    const occ = generaOccorrenze(String(s['Giorno']).trim(), chiusure).filter(d=>d>=oggi);
+    if(occ.length && (!prossima || occ[0] < prossima.data)) prossima = { data:occ[0], corso:s['Corso'], orario:s['Orario'], sede:s['Sede'] };
   });
 
   const annunciRilevanti = annunci.filter(a=>{
     const dest = (a['Destinatari (Tutti/Corso)']||a['Destinatari']||'Tutti').trim();
-    if(dest === 'Tutti') return true;
-    return corsiStudente.includes(a['Corso (se Destinatari=Corso)']||a['Corso']);
+    return dest === 'Tutti' || corsiStudente.includes(a['Corso (se Destinatari=Corso)']||a['Corso']);
   });
-  const annunciImportanti = annunciRilevanti.filter(a=>(a['Importante (Sì/No)']||'').toLowerCase().startsWith('s'));
-
+  const annunciImportanti = annunciRilevanti.filter(a=>String(a['Importante (Sì/No)']||'').toLowerCase().startsWith('s'));
   const canzoniStudente = canzoni.filter(c=>{
     const vis = (c['Visibilità (Tutti/Corso)']||c['Visibilità']||'Tutti').trim();
-    if(vis === 'Tutti') return true;
-    return corsiStudente.includes(c['Corso (se Visibilità=Corso)']||c['Corso']);
+    return vis === 'Tutti' || corsiStudente.includes(c['Corso (se Visibilità=Corso)']||c['Corso']);
   });
 
   app.innerHTML = `
     <div class="shell">
-      <div class="fam-hero">
-        <span class="fam-eyebrow">MusiCare</span>
-        <h1>Ciao, ${primoNome}!</h1>
-        <p class="fam-tag">Musica per educare, crescere, nutrire.</p>
-      </div>
-
-      <div class="tabs">
-        <button class="tab is-active" data-tab="home">Home</button>
-        <button class="tab" data-tab="calendario">Calendario</button>
-        <button class="tab" data-tab="canzoni">Canzoni</button>
-        <button class="tab" data-tab="info">Info</button>
-      </div>
-
+      <div class="fam-hero"><span class="fam-eyebrow">MusiCare</span><h1>Ciao, ${primoNome}!</h1><p class="fam-tag">Musica per educare, crescere, nutrire.</p></div>
+      <div class="tabs"><button class="tab is-active" data-tab="home">Home</button><button class="tab" data-tab="calendario">Calendario</button><button class="tab" data-tab="canzoni">Canzoni</button><button class="tab" data-tab="info">Info</button></div>
       <div class="tab-panel is-active" id="panel-home">
-        ${prossima ? `
-        <div class="next-lesson">
-          <p class="nl-label">Prossima lezione</p>
-          <p class="nl-date">${fmtData(prossima.data)}${prossima.orario ? ' · '+prossima.orario : ''}</p>
-          <p class="nl-course">${prossima.corso||''}${prossima.sede ? ' — '+prossima.sede : ''}</p>
-        </div>` : ''}
-
-        ${annunciImportanti.map(a=>`
-          <div class="announce"><h3>${a['Titolo']}</h3><p>${a['Testo']}</p></div>
-        `).join('')}
-
-        <div class="section">
-          <h2>Le tue iscrizioni</h2>
-          ${iscrizioni.map(s=>`
-            <div class="enroll-card">
-              <span class="e-course">${s['Corso']||'Corso da definire'}</span>
-              <p style="margin:4px 0 0" class="t-sub">
-                ${s['Giorno'] && s['Orario'] ? `${s['Giorno']} · ${s['Orario']} — ${s['Sede']||''} · Confermato` : 'In fase di conferma'}
-              </p>
-            </div>
-          `).join('')}
-        </div>
+        ${prossima ? `<div class="next-lesson"><p class="nl-label">Prossima lezione</p><p class="nl-date">${fmtData(prossima.data)}${prossima.orario?' · '+prossima.orario:''}</p><p class="nl-course">${prossima.corso||''}${prossima.sede?' — '+prossima.sede:''}</p></div>` : ''}
+        ${annunciImportanti.map(a=>`<div class="announce"><h3>${a['Titolo']}</h3><p>${a['Testo']}</p></div>`).join('')}
+        <div class="section"><h2>Le tue iscrizioni</h2>${iscrizioni.map(s=>`<div class="enroll-card"><span class="e-course">${s['Corso']||'Corso da definire'}</span><p style="margin:4px 0 0" class="t-sub">${s['Giorno']&&s['Orario']?`${s['Giorno']} · ${s['Orario']} — ${s['Sede']||''} · Confermato`:'In fase di conferma'}</p></div>`).join('')}</div>
       </div>
-
-      <div class="tab-panel" id="panel-calendario">
-        ${renderCalendarioHtml(iscrizioni, chiusure)}
-      </div>
-
-      <div class="tab-panel" id="panel-canzoni">
-        ${canzoniStudente.length ? canzoniStudente.map(c=>`
-          <div class="song">
-            <div><div class="s-title">${c['Titolo']}</div><div class="s-artist">${c['Artista/Autore']||''}</div></div>
-            <a class="btn btn--outline btn--sm" href="${c['Link Audio/Video']||c['Link']||'#'}" target="_blank" rel="noopener">Ascolta</a>
-          </div>
-        `).join('') : `<div class="empty">Nessuna canzone disponibile ancora per il tuo corso.</div>`}
-      </div>
-
+      <div class="tab-panel" id="panel-calendario">${renderCalendarioHtml(iscrizioni, chiusure)}</div>
+      <div class="tab-panel" id="panel-canzoni">${canzoniStudente.length ? canzoniStudente.map(c=>`<div class="song"><div><div class="s-title">${c['Titolo']}</div><div class="s-artist">${c['Artista/Autore']||''}</div></div><a class="btn btn--outline btn--sm" href="${c['Link Audio/Video']||c['Link']||'#'}" target="_blank" rel="noopener">Ascolta</a></div>`).join('') : `<div class="empty">Nessuna canzone disponibile ancora per il tuo corso.</div>`}</div>
       <div class="tab-panel" id="panel-info">
-        <div class="info-block">
-          <h3>Come funzionano i pagamenti</h3>
-          <p>Se non hai ancora effettuato l'iscrizione e il pagamento del corso puoi farlo qui: <a href="${INFO.formPagamento}" target="_blank" rel="noopener">modulo di pagamento</a>.</p>
-          <p>Una volta ricevuto il messaggio con l'importo specifico, puoi versarlo su questo IBAN: <strong>${INFO.iban}</strong> intestato a <strong>${INFO.intestatario}</strong>, causale: nome e cognome dell'allievo.</p>
-        </div>
-        <div class="info-block">
-          <h3>Istruzioni per il pacchetto "1, 2, 3, PROVA!"</h3>
-          <p>Ecco delle semplici istruzioni per il mese di prova (4 lezioni):</p>
-          <ul>
-            <li>Ci vediamo 5 minuti prima dell'ora della tua lezione nella sede scelta.</li>
-            <li>La durata della lezione è di circa quaranta minuti: fai attenzione alla puntualità, sia in entrata che in uscita.</li>
-            <li>All'ingresso trovi appendiabiti e cassetti porta scarpe: lascia lì le scarpe e appendi zainetti, borse e giubbotti. Per la lezione servono calzini antiscivolo per grandi e piccoli.</li>
-            <li>In caso di imprevisto, avvisami via WhatsApp prima della lezione al ${INFO.telefono}.</li>
-          </ul>
-        </div>
-        <div class="info-block">
-          <h3>Recuperi</h3>
-          <p>Per i recuperi puoi contattarmi per fissarli tutto l'anno, in un corso equivalente al tuo durante la settimana, in una delle tre sedi disponibili.</p>
-        </div>
-        <div class="info-block">
-          <h3>Scheda d'iscrizione</h3>
-          <p>Il modulo può essere compilato qui: <a href="${INFO.formIscrizione}" target="_blank" rel="noopener">scheda di iscrizione</a>. Compilandone uno nuovo, sostituisce quello attuale.</p>
-        </div>
-        <div class="info-block">
-          <h3>Contatti</h3>
-          <p>WhatsApp: ${INFO.telefono} · Email: <a href="mailto:${INFO.email}">${INFO.email}</a></p>
-        </div>
+        <div class="info-block"><h3>Come funzionano i pagamenti</h3><p>Se non hai ancora effettuato l'iscrizione e il pagamento del corso puoi farlo qui: <a href="${INFO.formPagamento}" target="_blank" rel="noopener">modulo di pagamento</a>.</p><p>Una volta ricevuto il messaggio con l'importo specifico, versalo su questo IBAN: <strong>${INFO.iban}</strong> intestato a <strong>${INFO.intestatario}</strong>, causale: nome e cognome dell'allievo.</p></div>
+        <div class="info-block"><h3>Istruzioni per il pacchetto "1, 2, 3, PROVA!"</h3><ul><li>Ci vediamo 5 minuti prima dell'ora della tua lezione nella sede scelta.</li><li>La durata della lezione è di circa quaranta minuti: puntualità in entrata e in uscita.</li><li>All'ingresso trovi appendiabiti e cassetti porta scarpe. Servono calzini antiscivolo per grandi e piccoli.</li><li>In caso di imprevisto, avvisami via WhatsApp prima della lezione al ${INFO.telefono}.</li></ul></div>
+        <div class="info-block"><h3>Recuperi</h3><p>Per i recuperi puoi contattarmi per fissarli tutto l'anno, in un corso equivalente al tuo, in una delle tre sedi disponibili.</p></div>
+        <div class="info-block"><h3>Scheda d'iscrizione</h3><p>Il modulo può essere compilato qui: <a href="${INFO.formIscrizione}" target="_blank" rel="noopener">scheda di iscrizione</a>.</p></div>
+        <div class="info-block"><h3>Contatti</h3><p>WhatsApp: ${INFO.telefono} · Email: <a href="mailto:${INFO.email}">${INFO.email}</a></p></div>
       </div>
-    </div>
-  `;
+    </div>`;
 
-  app.querySelectorAll('.tab').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      app.querySelectorAll('.tab').forEach(b=>b.classList.remove('is-active'));
-      app.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('is-active'));
-      btn.classList.add('is-active');
-      document.getElementById('panel-'+btn.dataset.tab).classList.add('is-active');
-      window.scrollTo({top:0, behavior:'smooth'});
-    });
-  });
+  app.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click', ()=>{
+    app.querySelectorAll('.tab').forEach(b=>b.classList.remove('is-active'));
+    app.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('is-active'));
+    btn.classList.add('is-active'); document.getElementById('panel-'+btn.dataset.tab).classList.add('is-active');
+    window.scrollTo({top:0, behavior:'smooth'});
+  }));
 }
 
 function renderCalendarioHtml(iscrizioni, chiusure){
-  const perCorso = iscrizioni.map(s=>{
-    if(!s['Giorno']) return null;
-    return { corso: s['Corso'], orario: s['Orario'], sede: s['Sede'], occ: generaOccorrenze(s['Giorno'].trim(), chiusure) };
-  }).filter(Boolean);
-
+  const perCorso = iscrizioni.map(s=> s['Giorno'] ? { corso:s['Corso'], orario:s['Orario'], sede:s['Sede'], occ:generaOccorrenze(String(s['Giorno']).trim(), chiusure) } : null).filter(Boolean);
   if(!perCorso.length) return `<div class="empty">Il calendario apparirà qui appena il tuo corso avrà giorno e orario confermati.</div>`;
-
-  // raggruppa tutte le date per mese
   const perMese = {};
-  perCorso.forEach(p=>{
-    p.occ.forEach(d=>{
-      const key = `${d.getFullYear()}-${d.getMonth()}`;
-      if(!perMese[key]) perMese[key] = [];
-      perMese[key].push({ data:d, corso:p.corso, orario:p.orario, sede:p.sede });
-    });
-  });
-
+  perCorso.forEach(p=> p.occ.forEach(d=>{ const k=`${d.getFullYear()}-${d.getMonth()}`; (perMese[k]=perMese[k]||[]).push({data:d, corso:p.corso, orario:p.orario, sede:p.sede}); }));
   return Object.keys(perMese).sort().map(key=>{
     const [y,m] = key.split('-').map(Number);
     const items = perMese[key].sort((a,b)=>a.data-b.data);
-    return `
-      <div class="cal-month">
-        <h3>${MESI[m]} ${y}</h3>
-        ${items.map(i=>`
-          <div class="cal-item">
-            <span class="c-date">${fmtData(i.data)}</span>
-            <span>${i.orario||''} ${i.corso ? '· '+i.corso : ''} ${i.sede ? '— '+i.sede : ''}</span>
-          </div>
-        `).join('')}
-      </div>`;
+    return `<div class="cal-month"><h3>${MESI[m]} ${y}</h3>${items.map(i=>`<div class="cal-item"><span class="c-date">${fmtData(i.data)}</span><span>${i.orario||''} ${i.corso?'· '+i.corso:''} ${i.sede?'— '+i.sede:''}</span></div>`).join('')}</div>`;
   }).join('');
 }
 
@@ -579,7 +519,7 @@ async function init(){
   const studente = params.get('studente');
   const data = await loadAllData();
   if(studente) renderFamiglia(data, studente);
-  else renderAdmin(data);
+  else { CURRENT_DATA = data; renderAdmin(data); }
 }
 
 document.addEventListener('DOMContentLoaded', init);
